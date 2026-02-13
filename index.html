@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Analizador TOPs — Pro (HTML)</title>
+
+  <!-- SheetJS (XLSX) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+  <header>
+    <div class="wrap">
+      <h1>📊 Analizador TOPs — Pro</h1>
+      <p>Carga Excel → Procesa con TOP DATE (15 días hábiles) → Guarda en Google Sheets y visualiza progreso.</p>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="brand">Analizador TOPs</div>
+      <nav>
+        <button class="nav-item active" data-view="procesar" id="navProcesar">1 • Procesar</button>
+        <button class="nav-item" data-view="seguimiento" id="navSeguimiento" disabled style="opacity:0.5;cursor:not-allowed;">2 • Seguimiento (próximamente)</button>
+        <button class="nav-item" data-view="dashboard" id="navDashboard" disabled style="opacity:0.5;cursor:not-allowed;">3 • Dashboard (próximamente)</button>
+      </nav>
+      <div class="sidebar-note">Carga Excel → Procesa → Revisa → Guarda</div>
+    </aside>
+
+    <main class="content">
+      <!-- Procesar view -->
+      <section id="view-procesar" class="view active">
+        <div class="card">
+          <h2>1️⃣ Cargar Reporte</h2>
+          <p>Carga el archivo Excel localmente en tu navegador. El archivo original no se modifica.</p>
+
+          <div class="row">
+            <button id="btnPick" class="btn">📁 Cargar LLL Global Report</button>
+            <span id="filePill" class="pill">Ningún archivo cargado</span>
+            <input id="fileInput" type="file" accept=".xlsx,.xls" style="display:none" />
+          </div>
+
+          <div class="note">📌 Se espera la hoja <b>LLL GR.</b> y encabezados típicamente en fila 6.</div>
+        </div>
+
+        <div class="card">
+          <h2>2️⃣ Seleccionar Season</h2>
+          <p>Filtra por <b>Season</b> (STATUS Season es automáticamente <b>Producción</b>).</p>
+
+          <div class="row">
+            <div class="field" style="min-width:280px">
+              <label for="seasonSel">🗓️ Season</label>
+              <select id="seasonSel" disabled>
+                <option value="">— Detectadas después de cargar —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="note">💡 El sistema reconoce "Producción" (con tilde) y "Produccion" (sin tilde).</div>
+        </div>
+
+        <div class="card">
+          <h2>3️⃣ Procesar y Descargar</h2>
+          <p>Procesa los TOPs (calcula TOP DATE) y descarga Excel con 2 hojas: TOPs para tracking y Dashboard con resúmenes.</p>
+
+          <div class="row">
+            <button id="btnExport" class="btn" disabled>⚡ Procesar y Descargar Excel</button>
+            <button id="btnReset" class="btn secondary" disabled>🔄 Limpiar</button>
+          </div>
+
+          <div class="note">📥 Descarga el Excel con datos listos. Puedes llenar REAL DATE en la primera hoja.</div>
+        </div>
+
+        <div class="card">
+          <h2>📋 Vista Previa</h2>
+          <div class="tableWrap" id="previewWrap" style="display:none">
+            <table id="previewTable"><thead></thead><tbody></tbody></table>
+          </div>
+          <div class="note" id="previewNote" style="display:none">👀 Vista previa (primeras 25 filas procesadas).</div>
+        </div>
+        <div class="statusbar" id="status">✓ Listo. Carga un Excel para comenzar.</div>
+      </section>
+
+      <!-- Seguimiento view -->
+      <section id="view-seguimiento" class="view">
+        <div class="card">
+          <h2>2️⃣ Seguimiento</h2>
+          <p>Revisa los registros guardados y actualiza el campo <b>REAL DATE</b> para cada OP.</p>
+          <div class="row">
+            <button id="btnRefreshTrack" class="btn">🔄 Refrescar</button>
+            <button id="btnSaveTrack" class="btn" disabled>💾 Guardar cambios</button>
+            <input id="trackFilter" placeholder="🔍 Filtrar por OP o Style" style="flex:1;min-width:200px;margin:0;padding:10px 12px;border-radius:var(--radius);border:1.5px solid var(--line);font-size:13px;" />
+          </div>
+          <div class="tableWrap" id="trackWrap">
+            <table id="trackTable"><thead></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Dashboard view -->
+      <section id="view-dashboard" class="view">
+        <div class="card">
+          <h2>3️⃣ Dashboard</h2>
+          <p>Visualiza indicadores: diferencia TOP DATE vs REAL DATE, % cumplimiento y filtros por OP/Style.</p>
+          <div class="row">
+            <input id="dashFilterOp" placeholder="Filtrar por OP" style="flex:1;min-width:150px;padding:10px 12px;border-radius:var(--radius);border:1.5px solid var(--line);font-size:13px;" />
+            <input id="dashFilterStyle" placeholder="Filtrar por Style" style="flex:1;min-width:150px;padding:10px 12px;border-radius:var(--radius);border:1.5px solid var(--line);font-size:13px;" />
+            <button id="btnApplyFilters" class="btn">📊 Aplicar filtros</button>
+          </div>
+          <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:18px">
+            <div style="flex:1 1 380px" class="card">
+              <h3>📈 Días de diferencia (TOP → REAL)</h3>
+              <canvas id="chartDiff" height="220"></canvas>
+            </div>
+            <div style="flex:1 1 380px" class="card">
+              <h3>✅ % Cumplimiento por OP</h3>
+              <canvas id="chartPercent" height="220"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Overlay/Modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h3 id="ovTitle">⏳ Procesando</h3>
+      <p id="ovMsg">Por favor espera...</p>
+      <div class="bar"><span></span></div>
+    </div>
+  </div>
+
+  <script src="js/logica.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
