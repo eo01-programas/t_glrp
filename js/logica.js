@@ -116,7 +116,8 @@ function subtractBusinessDays(dateObj, n){
   while (remaining > 0){
     d.setDate(d.getDate() - 1);
     const day = d.getDay();
-    if (day !== 0 && day !== 6) remaining--;
+    // Días hábiles: lun, mar, jue, vie (no sáb, dom ni miércoles)
+    if (day !== 0 && day !== 6 && day !== 3) remaining--;
   }
   return d;
 }
