@@ -13,7 +13,7 @@
       return;
     }
 
-    if (window.overlayShow) overlayShow("Cargando", "Leyendo Excel y detectando encabezados...");
+    if (window.overlayShow) overlayShow("Procesando", "Leyendo Excel y detectando encabezados...");
     if (window.setStatus) setStatus("Cargando reporte...");
     $id("btnPick").disabled = true;
 
@@ -84,8 +84,6 @@
 
       $id("filePill").textContent = `Archivo: ${APP.sourceFileName}  |  Hoja: ${APP.sheetUsedName}  |  Encabezado: fila ${APP.headerRowIndex+1}`;
       const _s = $id("summary"); if (_s) _s.textContent = "—";
-      $id("previewWrap").style.display = "none";
-      $id("previewNote").style.display = "none";
 
       if (window.setStatus) setStatus(`Listo. Seasons detectadas: ${APP.seasons.length}`);
       if (window.overlayHide) overlayHide();
