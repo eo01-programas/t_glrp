@@ -11,13 +11,13 @@
   function overlayShow(title, msg){
     $("ovTitle").textContent = title || "Procesando";
     $("ovMsg").textContent = msg || "Procesando...";
-    $("overlay").style.display = "flex";
+    $("overlay").classList.add("show");
   }
   function overlayMsg(msg){
     $("ovMsg").textContent = msg || "Procesando...";
   }
   function overlayHide(){
-    $("overlay").style.display = "none";
+    $("overlay").classList.remove("show");
   }
 
   function renderPreview(outAoa, maxRows=25){
@@ -54,8 +54,6 @@
     });
 
     console.log(`✓ Preview renderizada: ${body.length} filas visibles`);
-    $("previewWrap").style.display = "block";
-    $("previewNote").style.display = "block";
   }
 
   function resetAll(){
@@ -72,8 +70,6 @@
     $("btnExport").disabled = true;
     $("btnReset").disabled = true;
 
-    $("previewWrap").style.display = "none";
-    $("previewNote").style.display = "none";
     setStatus("Listo.");
   }
 
@@ -88,9 +84,12 @@
     // if (name === 'dashboard') loadDashboard();
   }
 
-  document.getElementById('navProcesar').addEventListener('click', () => showView('procesar'));
-  document.getElementById('navSeguimiento').addEventListener('click', () => alert('Seguimiento está en construcción. Por mientras, enfócate en procesar y guardar los datos.'));
-  document.getElementById('navDashboard').addEventListener('click', () => alert('Dashboard está en construcción. Por mientras, enfócate en procesar y guardar los datos.'));
+  const navProcesar = document.getElementById('navProcesar');
+  if (navProcesar) navProcesar.addEventListener('click', () => showView('procesar'));
+  const navSeguimiento = document.getElementById('navSeguimiento');
+  if (navSeguimiento) navSeguimiento.addEventListener('click', () => alert('Seguimiento está en construcción. Por mientras, enfócate en procesar y guardar los datos.'));
+  const navDashboard = document.getElementById('navDashboard');
+  if (navDashboard) navDashboard.addEventListener('click', () => alert('Dashboard está en construcción. Por mientras, enfócate en procesar y guardar los datos.'));
 
   // Exponer funciones al scope global para input.js
   window.setStatus = setStatus;
@@ -278,6 +277,7 @@
       const hOP = H("OP");
       const hStyle = H("Style");
       const hColorName = H("Color Name");
+      const hColorCode = H("Color Code");
 
       console.log(`   Headers: [${hStatusSeason}] [${hSeason}] [${hHodLLL}]`);
 
@@ -304,29 +304,29 @@
 
       if (!filtered.length) throw new Error("Todas las filas filtradas están sin fecha HOD LULULEMON.");
 
-      overlayMsg("Escogiendo 1er despacho: min(HOD LULULEMON) por Style + Color Name...");
+      overlayMsg("Escogiendo 1er despacho: min(HOD LULULEMON) por Style + Color...");
       const minMap = new Map();
       for (const r of filtered){
-        const key = `${String(r[hStyle] ?? "").trim()}||${String(r[hColorName] ?? "").trim()}`;
+        const key = `${String(r[hStyle] ?? "").trim()}||${String(r[hColorName] ?? "").trim()}||${String(r[hColorCode] ?? "").trim()}`;
         const t = r.__hodTime;
         if (t === null) continue;
         if (!minMap.has(key) || t < minMap.get(key)) minMap.set(key, t);
       }
 
       let filteredMin = filtered.filter(r => {
-        const key = `${String(r[hStyle] ?? "").trim()}||${String(r[hColorName] ?? "").trim()}`;
+        const key = `${String(r[hStyle] ?? "").trim()}||${String(r[hColorName] ?? "").trim()}||${String(r[hColorCode] ?? "").trim()}`;
         return r.__hodTime === minMap.get(key);
       });
 
-      console.log(`✓ Después de min por Style+Color: ${filteredMin.length} filas`);
+      console.log(`✓ Después de min por Style + Color: ${filteredMin.length} filas`);
 
-      overlayMsg("Deduplicando por OP + Style + Color Name (mantener el primero por fecha)...");
+      overlayMsg("Deduplicando por Style + Color (mantener el primero por fecha)...");
       filteredMin.sort((a,b) => (a.__hodTime - b.__hodTime));
 
       const seen = new Set();
       const finalRows = [];
       for (const r of filteredMin){
-        const key = `${String(r[hOP] ?? "").trim()}||${String(r[hStyle] ?? "").trim()}||${String(r[hColorName] ?? "").trim()}`;
+        const key = `${String(r[hStyle] ?? "").trim()}||${String(r[hColorName] ?? "").trim()}||${String(r[hColorCode] ?? "").trim()}`;
         if (seen.has(key)) continue;
         seen.add(key);
         finalRows.push(r);
@@ -334,7 +334,7 @@
 
       console.log(`✓ FINAL - Filas únicas: ${finalRows.length}`);
 
-      overlayMsg("Calculando TOP DATE (15 business days)...");
+      overlayMsg("Calculando TOP DATE (15 días hábiles, sin sábados, domingos ni miércoles)...");
       const outAoa = [];
       outAoa.push(OUT_COLUMNS);
 
@@ -348,27 +348,25 @@
         const poVal = toSafeIntOrBlank(poRaw);
         const ccVal = toSafeIntOrBlank(ccRaw);
 
-        // Obtener fechas originales del Excel
+        // Usar fechas como Date para que Excel las reconozca como fecha (no texto)
         const cofacoPcp = r.__cof instanceof Date ? r.__cof : parseExcelDate(r[H("HOD\nCOFACO\nPCP")]);
-        
-        // Convertir fechas a string YYYY-MM-DD (sin hora)
-        const cofacoPcpStr = cofacoPcp instanceof Date ? fmtYYYYMMDD(cofacoPcp) : "";
-        const hodStr = hod instanceof Date ? fmtYYYYMMDD(hod) : "";
-        const topStr = top instanceof Date ? fmtYYYYMMDD(top) : "";
+        const cofacoPcpVal = cofacoPcp instanceof Date ? cofacoPcp : "";
+        const hodVal = hod instanceof Date ? hod : "";
+        const topVal = top instanceof Date ? top : "";
 
         const row = [
           r[H("STATUS\nSeason")] ?? "",
           r[H("Season")] ?? "",
           poVal,
           r[H("OP")] ?? "",
-          cofacoPcpStr,
-          hodStr,
+          cofacoPcpVal,
+          hodVal,
           r[H("Style")] ?? "",
           r[H("Style Name")] ?? "",
           ccVal,
           r[H("Color Description")] ?? "",
           r[H("Color Name")] ?? "",
-          topStr,
+          topVal,
           ""  // REAL DATE vacía para que el usuario la llene
         ];
         outAoa.push(row);
@@ -578,7 +576,7 @@
       const filename = `TOPs_${timestamp}.xlsx`;
       
       console.log(`  Escribiendo archivo: ${filename}...`);
-      XLSX.writeFile(wb, filename);
+      XLSX.writeFile(wb, filename, { cellDates: true, dateNF: "dd/mm/yyyy" });
       console.log(`✅ Excel descargado: ${filename}`);
       setStatus(`✓ Excel descargado: ${filename}`);
     } catch(err) {
@@ -592,3 +590,4 @@
   resetAll();
 
 })();
+
