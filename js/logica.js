@@ -63,9 +63,14 @@ function isValidDate(d){
   return d instanceof Date && !isNaN(d.getTime());
 }
 
+function toDateOnly(d){
+  if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 function parseExcelDate(v){
   if (v === null || v === undefined || v === "") return null;
-  if (v instanceof Date) return isValidDate(v) ? v : null;
+  if (v instanceof Date) return isValidDate(v) ? toDateOnly(v) : null;
   if (typeof v === "number" && window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code){
     const dc = XLSX.SSF.parse_date_code(v);
     if (dc){
@@ -100,7 +105,7 @@ function parseExcelDate(v){
     }
   }
   const d = new Date(s);
-  return isValidDate(d) ? d : null;
+  return isValidDate(d) ? toDateOnly(d) : null;
 }
 
 function fmtYYYYMMDD(d){
@@ -108,6 +113,13 @@ function fmtYYYYMMDD(d){
   const m = String(d.getMonth()+1).padStart(2,"0");
   const day = String(d.getDate()).padStart(2,"0");
   return `${y}-${m}-${day}`;
+}
+
+function fmtMMDDYYYY(d){
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  const y = d.getFullYear();
+  return `${m}/${day}/${y}`;
 }
 
 function subtractBusinessDays(dateObj, n){
@@ -182,7 +194,7 @@ function computeColWidths(aoa){
     for (let r=0; r<aoa.length; r++){
       let v = aoa[r][c];
       let s = "";
-      if (v instanceof Date){ s = fmtYYYYMMDD(v); }
+      if (v instanceof Date){ s = fmtMMDDYYYY(v); }
       else if (v === null || v === undefined){ s = ""; }
       else { s = String(v); }
       mx = Math.max(mx, Math.min(45, s.length + 2));
