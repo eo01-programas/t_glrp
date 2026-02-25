@@ -44,7 +44,7 @@
       row.forEach((v, colIdx) => {
         const td = document.createElement("td");
         if (v instanceof Date){
-          td.textContent = fmtYYYYMMDD(v);
+          td.textContent = fmtMMDDYYYY(v);
         } else {
           td.textContent = (v === null || v === undefined) ? "" : String(v);
         }
@@ -340,7 +340,7 @@
 
       for (const r of finalRows){
         const hod = r.__hod;
-        const top = adjustNoWednesday(subtractBusinessDays(hod, 15));
+        const top = toDateOnly(adjustNoWednesday(subtractBusinessDays(hod, 15)));
 
         const poRaw = r[H("PO #")];
         const ccRaw = r[H("Color Code")];
@@ -350,9 +350,9 @@
 
         // Usar fechas como Date para que Excel las reconozca como fecha (no texto)
         const cofacoPcp = r.__cof instanceof Date ? r.__cof : parseExcelDate(r[H("HOD\nCOFACO\nPCP")]);
-        const cofacoPcpVal = cofacoPcp instanceof Date ? cofacoPcp : "";
-        const hodVal = hod instanceof Date ? hod : "";
-        const topVal = top instanceof Date ? top : "";
+        const cofacoPcpVal = cofacoPcp instanceof Date ? toDateOnly(cofacoPcp) : "";
+        const hodVal = hod instanceof Date ? toDateOnly(hod) : "";
+        const topVal = top instanceof Date ? toDateOnly(top) : "";
 
         const row = [
           r[H("STATUS\nSeason")] ?? "",
@@ -527,6 +527,55 @@
     return dashboardAoa;
   }
 
+  function excelSerialDateOnly(d) {
+    return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 86400000;
+  }
+
+  function normalizeSheetDateCols(sheet, cols, firstRow, lastRow, fmt) {
+    for (const col of cols) {
+      for (let r = firstRow; r <= lastRow; r++) {
+        const addr = `${col}${r}`;
+        const cell = sheet[addr];
+        if (!cell) continue;
+
+        if (cell.f) {
+          cell.t = 'n';
+          cell.z = fmt;
+          continue;
+        }
+
+        if (cell.v === null || cell.v === undefined || cell.v === '') {
+          cell.z = fmt;
+          continue;
+        }
+
+        if (cell.v instanceof Date) {
+          cell.t = 'n';
+          cell.v = Math.round(excelSerialDateOnly(cell.v));
+          delete cell.w;
+          cell.z = fmt;
+          continue;
+        }
+
+        if (typeof cell.v === 'number' && isFinite(cell.v)) {
+          cell.t = 'n';
+          cell.v = Math.round(cell.v);
+          delete cell.w;
+          cell.z = fmt;
+          continue;
+        }
+
+        const parsed = parseExcelDate(cell.v);
+        if (parsed instanceof Date) {
+          cell.t = 'n';
+          cell.v = Math.round(excelSerialDateOnly(parsed));
+          delete cell.w;
+          cell.z = fmt;
+        }
+      }
+    }
+  }
+
   function downloadExcel() {
     try {
       if (!APP.lastOutAoa || APP.lastOutAoa.length < 2) {
@@ -551,6 +600,10 @@
       const colCount = OUT_COLUMNS.length;
       const lastCol = String.fromCharCode(65 + colCount - 1);  // Convertir número a letra (A, B, C, ... M)
       topsSheet['!autofilter'] = { ref: `A1:${lastCol}${lastRow}` };
+
+      // Blindar fechas como "solo día" (sin hora) en columnas:
+      // E=HOD COFACO PCP, F=HOD LULULEMON, L=TOP DATE, M=REAL DATE
+      normalizeSheetDateCols(topsSheet, ['E', 'F', 'L', 'M'], 2, lastRow, 'mm/dd/yyyy');
       
       XLSX.utils.book_append_sheet(wb, topsSheet, 'Tops');
       console.log('  Hoja Tops creada ✓');
@@ -566,6 +619,14 @@
         { wch: 15 },
         { wch: 20 }
       ];
+
+      // En la tabla de diferencias del Dashboard: B=Top Date, C=Real Date
+      const diffHeaderRow = dashboardData.findIndex(
+        r => Array.isArray(r) && r[0] === 'OP' && r[1] === 'Top Date' && r[2] === 'Real Date'
+      );
+      if (diffHeaderRow >= 0) {
+        normalizeSheetDateCols(dashboardSheet, ['B', 'C'], diffHeaderRow + 2, dashboardData.length, 'mm/dd/yyyy');
+      }
       
       XLSX.utils.book_append_sheet(wb, dashboardSheet, 'Dashboard');
       console.log('  Hoja Dashboard creada ✓');
@@ -576,7 +637,7 @@
       const filename = `TOPs_${timestamp}.xlsx`;
       
       console.log(`  Escribiendo archivo: ${filename}...`);
-      XLSX.writeFile(wb, filename, { cellDates: true, dateNF: "dd/mm/yyyy" });
+      XLSX.writeFile(wb, filename, { cellDates: false });
       console.log(`✅ Excel descargado: ${filename}`);
       setStatus(`✓ Excel descargado: ${filename}`);
     } catch(err) {
